@@ -1,0 +1,75 @@
+# Builds the macOS FFmpeg libraries for GucciBot's renderer and Video Mode:
+# seven universal (arm64 + x86_64) dylibs for macOS 11 and later, from the
+# same FFmpeg source as the Windows DLLs, GPL v3, with libx264 and dav1d
+# built in. It smoke-tests them the way GucciBot loads them, then uploads
+# ffmpeg-libs-mac.zip and SHA256SUMS.txt as an artifact. A release is made
+# from a run's artifact by hand. Runs only when started by hand.
+name: FFmpeg for macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tools
+        run: |
+          brew install nasm meson ninja pkgconf || brew upgrade nasm meson ninja pkgconf || true
+          sw_vers
+          xcodebuild -version
+          clang --version | head -n 1
+          echo "nasm $(nasm -v)"; echo "meson $(meson --version)"; echo "ninja $(ninja --version)"
+
+      - name: Fetch sources (pinned by commit)
+        run: bash mac/build.sh fetch
+
+      - name: Build arm64
+        run: bash mac/build.sh build arm64
+
+      - name: Build x86_64 (cross-compiled)
+        run: bash mac/build.sh build x86_64
+
+      - name: Universal dylibs, install names, ad hoc signing
+        run: bash mac/build.sh universal
+
+      - name: Check dependencies, signatures, minimum macOS
+        run: bash mac/build.sh check
+
+      - name: Smoke test (arm64)
+        run: |
+          clang -arch arm64 -mmacosx-version-min=11.0 -O1 -Wall -I work/prefix/arm64/include \
+            mac/smoke_test.c -o work/smoke_arm64
+          mkdir -p work/smoke/arm64
+          work/smoke_arm64 "$PWD/work/out" "$PWD/work/smoke/arm64"
+
+      - name: Smoke test (x86_64 under Rosetta, if the runner has it)
+        run: |
+          clang -arch x86_64 -mmacosx-version-min=11.0 -O1 -Wall -I work/prefix/arm64/include \
+            mac/smoke_test.c -o work/smoke_x86_64
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license || true
+          fi
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            mkdir -p work/smoke/x86_64
+            arch -x86_64 work/smoke_x86_64 "$PWD/work/out" "$PWD/work/smoke/x86_64"
+          else
+            echo "Rosetta isn't available on this runner: the x86_64 slices were checked by otool only, not run."
+          fi
+
+      - name: Package
+        run: bash mac/build.sh package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-libs-mac
+          path: |
+            work/ffmpeg-libs-mac.zip
+            work/SHA256SUMS.txt
+          if-no-files-found: error
