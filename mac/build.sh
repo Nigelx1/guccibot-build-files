@@ -149,7 +149,7 @@ EOF
         --enable-zlib --enable-bzlib --enable-iconv \
         --enable-libx264 --enable-libdav1d \
         $(ffmpeg_components) \
-        "${cross[@]}" || { tail -n 60 ffbuild/config.log; exit 1; }
+        ${cross[@]+"${cross[@]}"} || { tail -n 60 ffbuild/config.log; exit 1; }
     make -j"$NCPU"
     make install
     echo "::endgroup::"
