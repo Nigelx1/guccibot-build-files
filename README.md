@@ -17,6 +17,17 @@ You don't need anything from here to use GucciBot. Download it from [guccibot.ne
   - `swscale-9.dll`
 - **`SHA256SUMS.txt`:** the SHA-256 of each DLL and of the zip.
 
+**Release [`ffmpeg-n8.0.1-mac`](https://github.com/Nigelx1/guccibot-build-files/releases/tag/ffmpeg-n8.0.1-mac)**
+- **`ffmpeg-libs-mac.zip`:** the same seven libraries for macOS, for GucciBot's renderer and Video Mode there. They're universal (Apple Silicon and Intel), need macOS 11 or later, and are signed ad hoc:
+  - `libavcodec.62.dylib`
+  - `libavdevice.62.dylib`
+  - `libavfilter.11.dylib`
+  - `libavformat.62.dylib`
+  - `libavutil.60.dylib`
+  - `libswresample.6.dylib`
+  - `libswscale.9.dylib`
+- **`SHA256SUMS.txt`:** the SHA-256 of each library and of the zip.
+
 ## How GucciBot uses it
 
 Every push to GucciBot builds one package for every platform: Windows, macOS, iOS and Android 32/64-bit. The workflow is [`.github/workflows/multi-platform.yml`](https://github.com/Nigelx1/GucciBot/blob/multiplatform/.github/workflows/multi-platform.yml). Each build job downloads `ffmpeg-libs.zip` from this release and checks it against the SHA-256 written in that workflow. It refuses to build if the file differs, then packs the DLLs in.
@@ -33,8 +44,21 @@ FFmpeg is free software. This build is licensed under the [GNU GPL v3](https://w
 
 FFmpeg's legal page is [ffmpeg.org/legal.html](https://ffmpeg.org/legal.html).
 
+## Where the macOS libraries come from
+
+This repository builds them itself, with [`.github/workflows/ffmpeg-mac.yml`](.github/workflows/ffmpeg-mac.yml) and [`mac/build.sh`](mac/build.sh). The workflow runs only when started by hand, on a GitHub macOS runner. It builds the same FFmpeg as the Windows DLLs (`release/8.0` at commit `15504610b0`, so the version string is also n8.0.1-64-g15504610b0), configured with `--enable-gpl --enable-version3`, and builds in:
+- [x264](https://code.videolan.org/videolan/x264) from the `stable` branch at commit `b35605ace3ddf7c1a5d67a2eb553f034aef41d55`, for H.264 video;
+- [dav1d](https://code.videolan.org/videolan/dav1d) 1.5.4 at commit `54706fc6bc0cdecab7e9593974a4039cc038fca7`, so Video Mode can play AV1 videos;
+- Apple's VideoToolbox and AudioToolbox, which come with macOS.
+
+Each source is fetched by its commit, and the build stops if a commit doesn't match. The build is trimmed to what GucciBot uses: the encoders, decoders, containers and filters are listed in `mac/build.sh`, and there are no programs, network support or capture devices. The workflow then checks that each library finds the others in its own folder and otherwise needs only what comes with macOS, signs each one ad hoc, and runs [`mac/smoke_test.c`](mac/smoke_test.c). That test loads the libraries the way GucciBot does, makes and reads back short videos, and runs on Apple Silicon and, through Rosetta, on Intel. The release holds the exact zip that the test passed on. Its notes link the run.
+
+These libraries are licensed under the GNU GPL v3 too.
+
 ## Updating
 
 To change the DLLs:
 1. Make a new release here with a new tag. Don't replace an existing release's files, because older GucciBot commits point at them.
 2. Put the new tag and the zip's SHA-256 in GucciBot's `multi-platform.yml`.
+
+For the macOS libraries, change the pins at the top of `mac/build.sh`, run the workflow, and make the new release from the zip of a run that passed.
