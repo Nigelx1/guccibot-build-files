@@ -146,7 +146,7 @@ EOF
         --disable-programs --disable-doc --disable-debug --disable-network \
         --disable-autodetect --enable-pthreads \
         --enable-videotoolbox --enable-audiotoolbox \
-        --enable-zlib --enable-bzlib --enable-iconv \
+        --enable-zlib --enable-bzlib \
         --enable-libx264 --enable-libdav1d \
         $(ffmpeg_components) \
         ${cross[@]+"${cross[@]}"} || { tail -n 60 ffbuild/config.log; exit 1; }
@@ -168,7 +168,7 @@ universal() {
         install_name_tool -id "@loader_path/lib$n.dylib" "$f"
         # Every reference to another of the seven goes through @loader_path
         # (configure's --install-name-dir already does this; this makes sure).
-        for dep in $(otool -arch all -L "$f" | awk 'NR>1 && /libav|libsw/ {print $1}' | sort -u); do
+        for dep in $(otool -arch all -L "$f" | awk '/^[[:space:]]/ && /libav|libsw/ {print $1}' | sort -u); do
             local base
             base=$(basename "$dep")
             if [ "$dep" != "@loader_path/$base" ]; then
