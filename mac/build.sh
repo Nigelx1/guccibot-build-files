@@ -42,6 +42,10 @@ fetch() {
     # real git describe, the same one the Windows DLLs carry.
     git -C ffmpeg fetch -q --depth 80 "$FFMPEG_URL" "$FFMPEG_SHA" "refs/tags/n8.0.1:refs/tags/n8.0.1"
     git -C ffmpeg checkout -q "$FFMPEG_SHA"
+    # A shallow clone abbreviates hashes to 7 digits; FFmpeg's full history
+    # gives 10 (the Windows DLLs say ...-g15504610b0). FFmpeg's version.sh
+    # runs git describe in this folder, so it picks this up too.
+    git -C ffmpeg config core.abbrev 10
     test "$(git -C ffmpeg rev-parse HEAD)" = "$FFMPEG_SHA"
     got=$(git -C ffmpeg describe --tags --always)
     echo "FFmpeg: $(git -C ffmpeg rev-parse HEAD) ($got)"
